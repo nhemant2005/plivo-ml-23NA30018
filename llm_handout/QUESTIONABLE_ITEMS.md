@@ -5,11 +5,18 @@ untied embeddings, flat `normal_(std=0.05)` init, dropout=0, no grad clip,
 byte tokenizer (vocab 256). **Dev bpb: 2.3718**, params: 1,339,840 (67% of
 2M cap), steps: 2000.
 
-**Best isolated results so far:** grad clip + batch=32 → bpb 2.0836 (Run 5,
-byte tokenizer). Grad clip + char tokenizer (untied) → bpb 2.288 (Run 6,
-batch=8). Not yet stacked — batch=32 reverted to batch=8 for fast Phase 3
-iteration; both wins get combined at Phase 4 lock-in. Weight tying retested
-at vocab=913 and still regresses (Run 7) — closed, untied stays.
+**Current best (Run 9, shipped as `ckpt.pt`):** char tokenizer + n_embd=184 +
+grad clip + batch=32 → bpb **1.9863**, 1,994,560 params (99.7% of cap). Run 5's
+batch=32 win stacked cleanly on Run 8's tokenizer+width recipe: -0.2529 stacked
+vs -0.2690 isolated at byte level, i.e. ~94% of the isolated effect survived.
+Weight tying retested at vocab=913, still regresses (Run 7) — closed.
+
+**Open at time of submission (see "Known-open levers" in SUMMARY.html):** the LR
+was never varied in any run — all ten used lr=3e-4 inherited from the baseline.
+Phase 1's schedule runs held peak = the baseline constant, so they tested LR
+*magnitude*, not schedule *shape*; sorted by mean LR all four points are
+monotonic with the best at the highest LR ever tested. Run 10 (lr=1e-3 at
+batch=32) is the one probe that fit in the remaining time.
 
 Status legend: ✅ closed · 🔲 planned
 
@@ -27,9 +34,35 @@ Only grad clip helped. All others regressed and were reverted:
 | **Gradient clipping (max_norm=1.0)** | **2.3526** | **win, kept** |
 | AdamW + weight_decay=0.1 (stacked on clip) | 2.3597 | regression — 2000 steps isn't enough to overfit, decay just costs capacity |
 
-Not worth revisiting: LR schedule, scaled init, AdamW/decay, weight tying
-(retested at vocab=913 in Run 7, still regresses — closed for both vocab
-sizes tried).
+Not worth revisiting: scaled init, AdamW/decay.
+
+### ⚠️ Correction (post-audit): the LR schedule row above is confounded
+
+It should **not** be read as "schedules don't work." All three variants held
+peak LR equal to the baseline's constant 3e-4, so each ran at roughly half the
+baseline's *average* LR — they varied LR magnitude, not schedule shape. Sorted
+by mean LR, the four Phase 1 points are cleanly monotonic:
+
+| Run | Mean LR over run | Dev bpb |
+|---|---|---|
+| 1 (warmup+cosine→0) | 1.50e-4 | 2.6976 |
+| 1b (cosine→10% floor) | 1.63e-4 | 2.6338 |
+| 1c (cosine→floor, no warmup) | 1.65e-4 | 2.6076 |
+| 0 (constant baseline) | **3.00e-4** | **2.3718** |
+
+More LR, better bpb, every time — and the best result sits at the *highest LR
+ever tested*, i.e. the edge of the search range, never an interior optimum. Run
+1c's conclusion identified the mechanism correctly ("still improving fast at
+full 3e-4 constant") and then drew the opposite inference from it. A schedule
+earns its keep by permitting a **peak above** the best stable constant; that
+hypothesis was never tested. **Status: open, not closed.**
+
+### ⚠️ Correction: weight tying is closed at small vocab, not in general
+
+The regression is roughly constant (+0.0404 at V=256, +0.024 at V=913) while
+the params freed scale linearly with vocab: 41K at V=256, 146K at V=913, ~750K
+at V=4096. The trade only becomes interesting at BPE-scale vocab, which this
+run never reached. Correctly closed for the vocab sizes actually tried.
 
 ---
 
@@ -62,7 +95,7 @@ until the tokenizer (and possibly width/tying) choices are locked.
 
 ---
 
-## Phase 3 — tokenizer swap: char-level + byte-fallback (revised from "BPE")
+## Phase 3 — tokenizer swap: char-level + byte-fallback ✅ CLOSED (revised from "BPE")
 
 Corpus has only **657 unique codepoints** (7.3M bytes / 5.7M chars, 28%
 byte-overhead from encoding alone; Devanagari is 14% of chars but 33% of
@@ -77,12 +110,12 @@ Losslessness verified: full train corpus, dev_eval, a 2000-char Devanagari
 slice, and an out-of-vocab stress string (emoji/Cyrillic/Chinese/accented
 Latin) — all exact round-trips. Params 1,550,080 (untied), 78% of cap.
 
-### 4a. Vocab cost is cheap here — good news for Phase 2 sequencing
-At vocab≈913 tied, embedding cost is only ~146K params — far less than the
-512–2048 BPE vocab candidates previously sized (640K–1.28M). This means
-switching to char-level instead of full BPE leaves nearly the entire 660K
-headroom free for width increase, avoiding most of the "Phase 2 and 3 must
-be co-designed" tension that a larger BPE vocab would create.
+### 4a. Vocab cost is cheap here ✅ CONFIRMED — good news for Phase 2b sequencing
+At vocab≈913, embedding cost is far less than the 512–2048 BPE vocab
+candidates previously sized (640K–1.28M). Confirmed by Run 6: 1,550,080
+params (untied, 78% of cap), leaving ~450K headroom for width — avoids most
+of the "Phase 2 and 3 must be co-designed" tension a larger BPE vocab would
+have created.
 
 ### 4b. Retest weight tying once vocab is real ✅ CLOSED — still regresses, bpb 2.288 -> 2.312 (Run 7)
 Tested at vocab=913 (Run 6's char tokenizer). Freed 146,080 params but bpb
@@ -91,21 +124,26 @@ embedding roles still want to diverge at this width/step budget regardless
 of vocab size. Reverted to untied. Closed for both vocab sizes tried, don't
 retest again.
 
-### 4c. Rare-token risk, deprioritized
-2000 steps × batch 32 ≈ 8M token-windows is plenty for a 913-symbol vocab
-(unlike a 4000+ BPE vocab, where long-tail merges would get single-digit
-updates). Low risk at this vocab size — not a reason to shrink further.
+### 4c. Rare-token risk ✅ CONFIRMED NON-ISSUE
+913-symbol vocab is small enough that this was never likely to bite (unlike
+a 4000+ BPE vocab, where long-tail merges would get single-digit updates).
+Runs 6 and 7 both trained with clean, smooth loss curves — no sign of
+under-trained rare tokens. Closed, no action needed.
 
 ---
 
-## Phase 2b — spend the param budget (after Phase 3 lands)
+## Phase 2b — spend the param budget
 
-Width/depth reinvestment, contingent on the char tokenizer's real vocab size
-and Phase 1's recipe converging cleanly in 2000 steps. Width is the cheaper,
-lower-risk lever (doesn't touch step count); depth is riskier in a
-step-scarce regime and interacts with init scaling (already ruled out in
-Phase 1, don't reintroduce without cause).
-- **Leverage: medium**, blocked on Phase 3's actual vocab number.
+### 5. Width increase (n_embd) ✅ CLOSED — win, bpb 2.288 -> 2.2392 (Run 8)
+Solved the exact param formula for the largest n_embd (divisible by
+n_head=4) fitting under 2M at vocab=913, untied: n_embd=184 ->
+1,994,560 params (99.7% of cap, verified exact against the real model).
+Converged cleanly in 2000 steps, no under-fitting from the added capacity.
+
+### 6. Depth increase (n_layer) — not pursued
+No headroom left: n_embd=184 already uses 99.7% of the param cap. Adding a
+layer would require shrinking width to compensate, and per the audit, depth
+is the riskier/lower-leverage lever anyway in a step-scarce regime. Skipped.
 
 ---
 

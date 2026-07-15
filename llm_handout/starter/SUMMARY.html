@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Speedrun Summary</title>
+<style>
+  :root{
+    --bg:#fafafa; --fg:#18181b; --muted:#71717a; --border:#e4e4e7;
+    --card:#ffffff; --accent:#18181b; --accent-fg:#fafafa;
+    --win:#16a34a; --win-bg:#f0fdf4; --win-border:#bbf7d0;
+    --loss:#dc2626; --loss-bg:#fef2f2; --loss-border:#fecaca;
+    --kept:#2563eb; --kept-bg:#eff6ff; --kept-border:#bfdbfe;
+    --radius:0.75rem;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#09090b; --fg:#fafafa; --muted:#a1a1aa; --border:#27272a;
+      --card:#18181b; --accent:#fafafa; --accent-fg:#18181b;
+      --win:#4ade80; --win-bg:#052e16; --win-border:#14532d;
+      --loss:#f87171; --loss-bg:#450a0a; --loss-border:#7f1d1d;
+      --kept:#60a5fa; --kept-bg:#172554; --kept-border:#1e3a8a;
+    }
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:2.5rem 1.5rem 4rem; color:var(--fg);
+    background:
+      radial-gradient(1100px 500px at 15% -10%, rgba(99,102,241,0.16), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, rgba(236,72,153,0.12), transparent 55%),
+      var(--bg);
+    background-attachment:fixed;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Helvetica,Arial,sans-serif;
+    line-height:1.55;
+  }
+  @media (prefers-color-scheme: dark){
+    body{
+      background:
+        radial-gradient(1100px 500px at 15% -10%, rgba(99,102,241,0.25), transparent 60%),
+        radial-gradient(900px 500px at 100% 0%, rgba(236,72,153,0.18), transparent 55%),
+        var(--bg);
+      background-attachment:fixed;
+    }
+  }
+  .wrap{max-width:920px; margin:0 auto;}
+  header{margin-bottom:2rem;}
+  h1{font-size:1.75rem; font-weight:700; letter-spacing:-0.02em; margin:0 0 0.35rem;}
+  .subtitle{color:var(--muted); font-size:0.95rem;}
+  .card{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--radius);
+    padding:1.5rem; margin-bottom:1.5rem; box-shadow:0 1px 2px rgba(0,0,0,0.03);
+  }
+  .card h2{font-size:1.05rem; font-weight:600; margin:0 0 1rem; letter-spacing:-0.01em;}
+  .stat-row{display:flex; gap:1rem; flex-wrap:wrap;}
+  .stat{
+    flex:1; min-width:140px; border:1px solid var(--border); border-radius:var(--radius);
+    padding:1rem; background:var(--bg);
+  }
+  .stat .label{font-size:0.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.04em;}
+  .stat .value{font-size:1.5rem; font-weight:700; margin-top:0.25rem;}
+  .stat .delta{font-size:0.8rem; margin-top:0.15rem;}
+  .delta.win{color:var(--win);}
+  .badge{
+    display:inline-block; padding:0.15rem 0.6rem; border-radius:999px;
+    font-size:0.75rem; font-weight:600; border:1px solid transparent;
+  }
+  .badge.win{color:var(--win); background:var(--win-bg); border-color:var(--win-border);}
+  .badge.loss{color:var(--loss); background:var(--loss-bg); border-color:var(--loss-border);}
+  .badge.kept{color:var(--kept); background:var(--kept-bg); border-color:var(--kept-border);}
+  .tablewrap{overflow-x:auto;}
+  table{width:100%; border-collapse:collapse; font-size:0.9rem;}
+  th{
+    text-align:left; font-size:0.75rem; text-transform:uppercase; letter-spacing:0.04em;
+    color:var(--muted); font-weight:600; padding:0.5rem 0.6rem; border-bottom:1px solid var(--border);
+  }
+  td{padding:0.6rem; border-bottom:1px solid var(--border); vertical-align:top;}
+  tr:last-child td{border-bottom:none;}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:0.85em;}
+  .prose p{margin:0 0 0.85rem;}
+  .prose p:last-child{margin-bottom:0;}
+  .split{display:grid; grid-template-columns:1fr 1fr; gap:1rem;}
+  @media (max-width:640px){.split{grid-template-columns:1fr;}}
+  .contrib-bar{height:10px; border-radius:999px; background:var(--border); overflow:hidden; display:flex; margin:0.5rem 0;}
+  .contrib-bar .human{background:var(--kept);}
+  .contrib-bar .ai{background:var(--accent); opacity:0.35;}
+  footer{color:var(--muted); font-size:0.8rem; text-align:center; margin-top:2rem;}
+  code.inline{background:var(--bg); border:1px solid var(--border); border-radius:0.35rem; padding:0.1rem 0.4rem; font-size:0.85em;}
+  pre.runlog{
+    background:var(--bg); border:1px solid var(--border); border-radius:0.5rem;
+    padding:1rem; overflow-x:auto; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:0.78rem; line-height:1.5; white-space:pre-wrap; word-wrap:break-word; margin:0;
+  }
+  .label-sm{font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>2,000-Step LLM Speedrun — Summary</h1>
+    <div class="subtitle">Char-level GPT trained from scratch under the 2,000-step / 2,000,000-param caps. Compiled from RUNLOG.md and NOTES.md.</div>
+    <div class="subtitle" style="margin-top:0.35rem;">
+      Nallamasa Hemant &middot; 23NA30018 &middot;
+      <a href="https://github.com/nhemant2005/plivo-ml-23NA30018" style="color:var(--kept); text-decoration:none;">github.com/nhemant2005/plivo-ml-23NA30018</a>
+    </div>
+  </header>
+
+  <div class="card">
+    <h2>Result</h2>
+    <div class="stat-row">
+      <div class="stat">
+        <div class="label">Final dev bpb</div>
+        <div class="value">1.8798</div>
+        <div class="delta win">&minus;0.4920 vs baseline (&minus;20.7%)</div>
+      </div>
+      <div class="stat">
+        <div class="label">Baseline bpb</div>
+        <div class="value">2.3718</div>
+      </div>
+      <div class="stat">
+        <div class="label">Params</div>
+        <div class="value">1,994,560 <span style="font-size:0.9rem;font-weight:400;color:var(--muted);">/ 2,000,000</span></div>
+        <div class="delta" style="color:var(--muted);">99.7% of cap</div>
+      </div>
+      <div class="stat">
+        <div class="label">Steps</div>
+        <div class="value">2,000 <span style="font-size:0.9rem;font-weight:400;color:var(--muted);">/ 2,000</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>TL;DR</h2>
+    <div class="prose">
+      <p>Five changes to the baseline survived isolation testing across eleven runs, and together they moved dev bpb from <strong>2.3718 to 1.8798</strong> (&minus;20.7%). In order of contribution: <strong>batch 8&rarr;32</strong> (&minus;0.2529), <strong>learning rate 3e-4&rarr;1e-3</strong> (&minus;0.1065), a <strong>char-level tokenizer with byte fallback</strong> at vocab 913 (&minus;0.0646), <strong>width n_embd 160&rarr;184</strong> (&minus;0.0488), and <strong>gradient clipping</strong> at max_norm=1.0 (&minus;0.0192). Everything else regressed and was reverted.</p>
+      <p>The unifying reason is that a 2,000-step budget leaves this model <em>data-starved and under-trained, not capacity-limited</em>. That single fact explains both the wins and the losses: batch size and learning rate win biggest because both buy more learning per step; the tokenizer wins because 1.283 bytes/token cuts the number of NLL terms that bpb divides by; and LR decay, warmup, GPT-2 scaled init, and weight decay all <em>lose</em> because each trades early progress for a late-training benefit the run never survives long enough to collect.</p>
+      <p><strong>The most instructive result was the last one.</strong> The learning rate was inherited from the baseline and never varied for nine runs. Phase 1's three "LR schedule" runs had held peak LR equal to the baseline's constant, so they unintentionally tested LR <em>magnitude</em> rather than schedule <em>shape</em> &mdash; and sorted by mean LR they form a clean monotonic curve whose best point is the highest LR ever tried. Acting on that reading, one run at lr=1e-3 delivered &minus;0.1065: more than the tokenizer and width changes combined, and enough to falsify Phase 1's conclusion that the baseline was near its capacity limit rather than paying a mediocre-trainer tax. It neither diverged nor turned the loss curve over, so the optimum is bracketed only from below and is likely higher still.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Architecture &amp; configuration</h2>
+    <div class="tablewrap">
+    <table>
+      <thead><tr><th>Field</th><th>Value</th><th>vs. baseline</th></tr></thead>
+      <tbody>
+        <tr><td>vocab_size</td><td class="mono">913</td><td class="mono">256 &rarr; 913</td></tr>
+        <tr><td>block_size</td><td class="mono">128</td><td class="mono">unchanged</td></tr>
+        <tr><td>n_layer</td><td class="mono">4</td><td class="mono">unchanged</td></tr>
+        <tr><td>n_head</td><td class="mono">4</td><td class="mono">unchanged</td></tr>
+        <tr><td>n_embd</td><td class="mono">184</td><td class="mono">160 &rarr; 184</td></tr>
+        <tr><td>dropout</td><td class="mono">0.0</td><td class="mono">unchanged</td></tr>
+        <tr><td>tie_weights</td><td class="mono">False</td><td class="mono">unchanged (tested twice, regressed)</td></tr>
+        <tr><td>tokenizer</td><td class="mono">char-level + 256-id byte fallback (657 corpus chars + 256 bytes)</td><td class="mono">raw UTF-8 bytes &rarr; char</td></tr>
+        <tr><td>optimizer</td><td class="mono">Adam (plain, no weight decay)</td><td class="mono">unchanged (AdamW tested, regressed)</td></tr>
+        <tr><td>batch size</td><td class="mono">32</td><td class="mono">8 &rarr; 32</td></tr>
+        <tr><td>learning rate</td><td class="mono">1e-3 constant, no schedule</td><td class="mono">3e-4 &rarr; 1e-3 (&minus;0.1065)</td></tr>
+        <tr><td>gradient clipping</td><td class="mono">max_norm = 1.0</td><td class="mono">none &rarr; 1.0</td></tr>
+        <tr><td>init</td><td class="mono">normal_(std=0.05), flat</td><td class="mono">unchanged (GPT-2 scaled init tested, regressed)</td></tr>
+        <tr><td>steps / seed</td><td class="mono">2000 / 1337</td><td class="mono">unchanged</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="prose" style="margin-top:1rem;font-size:0.85rem;color:var(--muted);">
+      Width was sized by solving the exact parameter formula rather than by trial and error:
+      <code class="inline">total(V,e,L) = L&middot;(12e&sup2; + 13e) + 2Ve + block_size&middot;e + 2e</code>, verified exact
+      against the real model at both n_embd=160 (1,339,840) and n_embd=184 (1,994,560).
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Run history</h2>
+    <div class="tablewrap">
+    <table>
+      <thead><tr><th>Run</th><th>Change</th><th>Dev bpb</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">0</td><td>Baseline: constant lr=3e-4, Adam, batch=8, 4L/4H/160d, byte tokenizer</td><td class="mono">2.3718</td><td><span class="badge kept">baseline</span></td></tr>
+        <tr><td class="mono">1</td><td>LR warmup + cosine decay to 0</td><td class="mono">2.6976</td><td><span class="badge loss">regression</span></td></tr>
+        <tr><td class="mono">1b</td><td>Cosine decay to 10% floor</td><td class="mono">2.6338</td><td><span class="badge loss">regression</span></td></tr>
+        <tr><td class="mono">1c</td><td>Cosine to floor, no warmup</td><td class="mono">2.6076</td><td><span class="badge loss">regression</span></td></tr>
+        <tr><td class="mono">2</td><td>Weight tying (vocab 256)</td><td class="mono">2.4122</td><td><span class="badge loss">regression</span></td></tr>
+        <tr><td class="mono">3</td><td>GPT-2 scaled init + grad clip (combined)</td><td class="mono">2.4465</td><td><span class="badge loss">regression</span></td></tr>
+        <tr><td class="mono">3b</td><td><strong>Gradient clipping alone (max_norm=1.0)</strong></td><td class="mono">2.3526</td><td><span class="badge win">win &mdash; kept</span></td></tr>
+        <tr><td class="mono">3c</td><td>GPT-2 scaled init alone</td><td class="mono">2.4519</td><td><span class="badge loss">regression</span></td></tr>
+        <tr><td class="mono">4</td><td>AdamW + weight_decay=0.1</td><td class="mono">2.3597</td><td><span class="badge loss">regression</span></td></tr>
+        <tr><td class="mono">5</td><td>Batch 8&rarr;32 (byte tokenizer, isolated)</td><td class="mono">2.0836</td><td><span class="badge win">win &mdash; banked</span></td></tr>
+        <tr><td class="mono">6</td><td><strong>Char + byte-fallback tokenizer (vocab 913)</strong></td><td class="mono">2.2880</td><td><span class="badge win">win &mdash; kept</span></td></tr>
+        <tr><td class="mono">7</td><td>Weight tying retest at vocab 913</td><td class="mono">2.3120</td><td><span class="badge loss">regression</span></td></tr>
+        <tr><td class="mono">8</td><td><strong>Width n_embd 160&rarr;184</strong></td><td class="mono">2.2392</td><td><span class="badge win">win &mdash; kept</span></td></tr>
+        <tr><td class="mono">9</td><td><strong>Batch 8&rarr;32 stacked on Run 8</strong></td><td class="mono">1.9863</td><td><span class="badge win">win &mdash; kept</span></td></tr>
+        <tr><td class="mono">10</td><td><strong>Learning rate 3e-4&rarr;1e-3</strong> (the one variable never varied in Runs 0&ndash;9)</td><td class="mono">1.8798</td><td><span class="badge win">win &mdash; final</span></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="prose" style="margin-top:1rem;font-size:0.85rem;color:var(--muted);">
+      Every run isolates a single variable against the best recipe below it, with seed, steps and all
+      other hyperparameters held fixed. Run 9 confirmed that the batch and tokenizer/width wins stack
+      rather than cancel: &minus;0.2529 stacked, against &minus;0.2690 for the same lever isolated in Run 5.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Known-open levers (measured or bracketed, not closed)</h2>
+    <div class="prose">
+      <p><strong>Learning rate &mdash; identified by audit, tested in Run 10, still open above 1e-3.</strong> Runs 0&ndash;9 all used <code class="inline">lr=3e-4</code>, inherited unchanged from the baseline. The Phase 1 schedule runs held peak LR equal to that constant, so all three ran at roughly half the average LR &mdash; they varied LR magnitude, not schedule shape. Sorted by mean LR they are cleanly monotonic (1.50e-4 &rarr; 2.6976, 1.63e-4 &rarr; 2.6338, 1.65e-4 &rarr; 2.6076, 3.00e-4 &rarr; 2.3718), best result at the <em>highest LR ever tested</em>. Run 10 acted on this: lr=1e-3 gave <strong>1.8798 (&minus;0.1065)</strong>, the second-largest win of the exercise. It did not diverge, and while the late slope flattened (&minus;0.0288/250 steps vs Run 9's &minus;0.0518) the curve still has not turned over &mdash; <strong>the optimum is bracketed only from below (3e-4 &lt; 1e-3 &le; ?)</strong>. 2e-3, and a warmup+cosine schedule with peak above 1e-3 &mdash; the hypothesis Phase 1 never actually tested &mdash; are the obvious next runs. Out of time, not out of headroom.</p>
+      <p><strong>block_size 128 &rarr; 256.</strong> Rejected on wall-clock cost; its benefit was never measured. It is cheaper than it looks &mdash; solving the parameter formula at vocab=913 gives <code class="inline">48e&sup2; + 2136e = 2e6</code> &rarr; n_embd=180, i.e. 4 units of width for 2&times; the context, with eval context doubling too since <code class="inline">evaluate.py</code> strides at <code class="inline">block_size // 2</code>.</p>
+      <p><strong>Seed variance.</strong> Never measured; every run used seed=1337. The large wins (batch &minus;0.2529, LR &minus;0.1065, tokenizer &minus;0.0646, width &minus;0.0488) are comfortably outside plausible noise; the small deltas (grad clip &minus;0.0192, tying +0.024, AdamW +0.0071) are not, and those three verdicts should be read as provisional.</p>
+      <p><strong>BPE.</strong> The char tokenizer reaches 1.283 bytes/token. BPE at ~2.5&ndash;3 bytes/token would be roughly twice the leverage of the byte&rarr;char step, and is the point at which weight tying would finally pay (at vocab 4096 tying frees ~750K params, against 146K at vocab 913). Closed for implementation risk and time, not for measured evidence.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Best configuration &amp; why (NOTES.md, verbatim)</h2>
+    <div class="prose">
+      <p>Best configuration: char-level tokenizer with byte fallback (vocab 913) + 4 layers / 4 heads / n_embd=184 / block=128, untied embeddings, plain Adam at <strong>lr=1e-3</strong>, gradient clipping at max_norm=1.0, batch=32, 2000 steps &mdash; <strong>dev bpb 1.8798</strong>, 1,994,560 params (99.7% of the 2M cap), down from the 2.3718 baseline (&minus;20.7%).</p>
+      <p>Five changes earned their place, each isolated against the recipe below it: batch 8&rarr;32 (&minus;0.2529), learning rate 3e-4&rarr;1e-3 (&minus;0.1065), the char+byte tokenizer (&minus;0.0646), width n_embd 160&rarr;184 (&minus;0.0488), and gradient clipping (&minus;0.0192). Everything else regressed and was reverted. The tokenizer wins because the corpus uses only 657 distinct codepoints while Devanagari costs 3 bytes/char &mdash; dropping to 1.283 bytes/token directly cuts the number of NLL terms that bpb divides by. Width was sized by solving the exact parameter formula <code class="inline">4&middot;(12e&sup2;+13e) + 2&middot;913&middot;e + 128&middot;e + 2e</code> against the cap rather than by trial and error.</p>
+      <p>The unifying explanation is that at 2000 steps this model is <strong>data-starved and under-trained, not capacity-limited</strong>, and that single fact predicts both the wins and the losses. Batch size and learning rate win biggest because both buy more learning per step. LR decay, warmup, and GPT-2 scaled init all lose for the same reason &mdash; each trades early progress for a late-training benefit the run never survives long enough to collect &mdash; and weight decay had nothing to regularise because the model never reaches the overfitting regime.</p>
+      <p>The most instructive result was the last one. Learning rate was inherited from the baseline and never varied for nine runs; Phase 1's three "LR schedule" runs had held peak LR equal to the baseline constant, so they unintentionally tested LR <em>magnitude</em> rather than schedule <em>shape</em>, and sorted by mean LR they form a clean monotonic curve whose best point is the highest LR ever tried. Acting on that reading, one run at lr=1e-3 delivered &minus;0.1065 &mdash; more than the tokenizer and width changes combined, and enough to falsify Phase 1's conclusion that the baseline was near its capacity limit rather than paying a mediocre-trainer tax. It did not diverge and did not turn the loss curve over, so the optimum is likely higher still; the LR is bracketed only from below, and a schedule with a peak above 1e-3 &mdash; the hypothesis Phase 1 never actually tested &mdash; remains the most promising untried lever, alongside block_size 128&rarr;256 (which the formula prices at only n_embd 184&rarr;180).</p>
+      <p>The recurring lesson across ten runs is that a 2,000-step budget punishes anything that trades early progress for late refinement: LR decay, warmup, and GPT-2 scaled init all regressed for the same reason, and weight decay had nothing to regularise because the model never reaches the overfitting regime. Every checkpoint, including the best one, is still descending steeply at step 2000 (slope &minus;0.05 per 250 steps and not flattening), so this model is under-trained rather than at its capacity limit &mdash; which is why the largest remaining lever is almost certainly the learning rate, the one variable never varied across any run.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Tokenizer correctness</h2>
+    <div class="prose">
+      <p>Losslessness (<code class="inline">decode(encode(text)) == text</code>) is a hard cap, and is re-verified inside <code class="inline">evaluate.py</code> on every scoring call. It was independently checked before training on: the full 7.3MB <code class="inline">train_corpus.txt</code>; <code class="inline">dev_eval.txt</code>; a 2000-char Devanagari-only slice (multi-byte UTF-8 boundaries are where a naive char/merge tokenizer silently corrupts); and an out-of-vocab stress string of emoji, Cyrillic, Chinese and accented Latin, none of which appear in the 657-char vocab. All exact.</p>
+      <p>The byte-fallback path is not dead code on real data: <code class="inline">dev_eval.txt</code> contains 9 characters (<span class="mono">&#x2CC9; &sdot; &#x067E; &#x0634; &#x2C83; &#x2CB1; &#x2CA7; &#x0641; &Oslash;</span>) absent from the training vocab, which encode to 2&ndash;3 fallback byte ids each and round-trip exactly.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Human vs. AI contribution</h2>
+    <div class="split">
+      <div>
+        <div class="label-sm">Split</div>
+        <div class="contrib-bar">
+          <div class="human" style="width:55%"></div>
+          <div class="ai" style="width:45%"></div>
+        </div>
+        <div style="font-size:0.85rem;">~55% human-directed &middot; ~45% AI-implemented</div>
+        <p class="prose" style="font-size:0.8rem;color:var(--muted);margin-top:0.75rem;">
+          The human drove every strategic decision, ran every experiment, and wrote
+          all analysis. The AI wrote the code, helped evaluate experimental choices,
+          and formatted deliverables.
+        </p>
+      </div>
+      <div class="prose">
+        <p><strong>Human:</strong> designed the four-phase strategy (trainer &rarr; capacity &rarr; tokenizer &rarr; lock-in) and its ordering; imposed the one-variable-at-a-time isolation discipline and the rule that no code is written before analysis is presented and approved; made every go/no-go call on which experiment ran next; ran every training and evaluation run; specified the char+byte tokenizer design and verified losslessness on all test cases; wrote the full runlog analysis (RUNLOG.md), the configuration summary (NOTES.md), and the content of this page; audited the run history and identified that the learning rate was never varied and that the Phase 1 schedule experiment had confounded LR magnitude with schedule shape; made the final time-triage call that prioritised a valid submission and deliverables over further tuning.</p>
+        <p><strong>AI:</strong> wrote all code changes (model.py, tokenizer.py, train.py, evaluate.py); helped evaluate experimental choices and trade-offs; derived and verified the exact parameter formula used to size width; generated the char+byte tokenizer implementation from the human's design spec; formatted this HTML page from the human's written content; served as a coding assistant and thinking partner throughout the project.</p>
+        </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Full run log (RUNLOG.md, verbatim)</h2>
+    <p style="font-size:0.85rem;color:var(--muted);margin:0 0 0.75rem;">
+      Hypothesis, change, result and conclusion for every run, including the six that regressed and were reverted.
+    </p>
+    <pre class="runlog">RUN 0 — baseline
+  Hypothesis: n/a, establish baseline.
+  Config: constant lr=3e-4, Adam, batch=8, block=128, 4L/4H/160d, no schedule/decay/clip, byte tokenizer.
+  Result: train loss 5.65 -> 1.73, dev bpb 2.3718, params 1,339,840.
+  Conclusion: baseline works, matches handout description of "mediocre on purpose."
+
+RUN 1 — LR warmup + cosine decay to 0
+  Hypothesis: warmup + cosine decay reduces late-training noise and should beat constant LR.
+  Change: 100-step linear warmup then cosine decay to 0 over remaining 1900 steps.
+  Result: train loss plateaued ~1.96-1.97 (vs baseline 1.73). Dev bpb 2.6976.
+  Conclusion: regression. Suspected decay-to-zero throttles the back half of a 2000-step run.
+
+RUN 1b — same schedule, decay to 10% floor instead of 0
+  Hypothesis: a floor lets the model keep learning late instead of freezing.
+  Result: train loss ~1.93. Dev bpb 2.6338 — still worse than baseline.
+  Conclusion: floor alone didn't fix it. Step-100 loss: baseline 2.85 vs this run 3.63 — the warmup
+  ramp is costing early steps a 2000-step budget can't recover. Next: isolate warmup by removing it.
+
+RUN 1c — decay to 10% floor, no warmup
+  Hypothesis: warmup was the culprit; decay-only should recover baseline performance.
+  Result: step-100 loss matches baseline (2.85), step-2000 ~1.90. Dev bpb 2.6076 — still worse.
+  Conclusion: it's the decay itself, not warmup. Early training now matches baseline exactly, but
+  decaying LR while the model is still improving fast at 3e-4 constant costs more than the noise
+  reduction earns. Reverted; schedule code removed rather than left as dead machinery.
+
+RUN 2 — weight tying (vocab 256)
+  Hypothesis: frees ~41K params and often improves perplexity via shared input/output embedding.
+  Result: params 1,339,840 -> 1,298,880. Dev bpb 2.4122 (+0.0404).
+  Conclusion: mild regression standalone. At n_embd=160 the two roles (token lookup vs next-token
+  prediction) appear to want different directions. Re-evaluate once vocab is larger.
+
+RUN 3 — scaled init + gradient clipping (combined)
+  Hypothesis: GPT-2 init (std=0.02, residual branches scaled by 1/sqrt(2*n_layer)) plus clipping
+  should be neutral-to-positive.
+  Result: step-100 loss 3.01 (vs baseline 2.85). Dev bpb 2.4465.
+  Conclusion: regression. Slower early loss points at the smaller base std. Need to isolate.
+
+RUN 3b — gradient clipping alone (init reverted to std=0.05)
+  Result: step-100 loss 2.7734 (better than baseline 2.8522), step-2000 1.7133. Dev bpb 2.3526.
+  Conclusion: WIN, confirmed — first improvement over baseline (-0.0192). Better throughout the
+  whole curve, not just the tail: cleaner gradient steps from early on. Confirms Run 3's regression
+  traces to the init, not the clip.
+
+RUN 3c — scaled init alone
+  Result: step-100 loss 3.0864 (worse than baseline and worse than combined Run 3). Dev bpb 2.4519.
+  Conclusion: standalone regression, culprit confirmed. At 4 layers the residual-variance problem
+  this guards against barely exists, while std=0.02 genuinely slows early convergence. GPT-2 init
+  tricks are tuned for much deeper nets.
+
+RUN 4 — AdamW + weight_decay=0.1 (stacked on grad clip)
+  Result: step-2000 loss 1.7219 (vs 1.7133). Dev bpb 2.3597 (+0.0071).
+  Conclusion: small regression, reverted. At 2000 steps the model never reaches the overfitting
+  regime, so decay just costs capacity. Phase 1 verdict: 1 of 5 trainer changes helped.
+
+RUN 5 — batch size 8 -> 32 (byte tokenizer, isolated)
+  Hypothesis: batch cost is ~linear while block cost is quadratic; batch=32 sees 8.19M tokens
+  (>1 epoch of the 7.3M-byte corpus) and reduces per-step gradient noise.
+  Result: step-2000 loss 1.4254 (vs 1.7133). Dev bpb 2.0836 (-0.2690).
+  Conclusion: WIN by a wide margin — batch alone beats every Phase 1 trainer change combined.
+  Banked; reverted to batch=8 for tokenizer development so iteration stays fast (7.4min vs 1.9min).
+
+RUN 6 — char-level + byte-fallback tokenizer (batch=8, isolated)
+  Hypothesis: corpus has only 657 unique codepoints; char-level removes most of the byte-encoding
+  tax (28% sequence inflation; Devanagari costs 3 bytes/char) at far lower risk than merge-trained BPE.
+  Losslessness verified before training: full corpus, dev_eval, a 2000-char Devanagari slice, and an
+  OOV stress string (emoji/Cyrillic/Chinese/accented Latin) — all exact round-trips.
+  Result: params 1,550,080 (78% of cap). Dev bpb 2.2880 (-0.0646).
+  Conclusion: WIN, confirmed. Smaller than the -0.15..-0.30 estimate but real and in the predicted direction.
+
+RUN 7 — weight tying retest at vocab=913
+  Hypothesis: Run 2 was measured at vocab=256 where tying freed only ~41K; at vocab=913 it frees ~146K.
+  Result: params 1,550,080 -> 1,404,000. Dev bpb 2.3120 (+0.024) — same shape as Run 2.
+  Conclusion: regression, reverted. The embedding roles still want to diverge regardless of vocab size.
+  Closed for both vocab sizes tried.
+
+RUN 8 — width increase, n_embd 160 -> 184 (isolated)
+  Hypothesis: Run 6 used only 78% of the cap. Solving total(V,e,L) = L*(12e^2+13e) + 2Ve + block*e + 2e
+  for V=913, L=4, block=128 gives the largest n_embd divisible by n_head=4 as 184 -> 1,994,560 params.
+  Result: params 1,994,560 (99.7% of cap). Step-2000 loss 2.0735 (vs 2.1022). Dev bpb 2.2392 (-0.0488).
+  Conclusion: WIN, confirmed. Converged cleanly with the added capacity; no under-fitting.
+
+RUN 9 — batch 8 -> 32, stacked on Run 8's recipe
+  Hypothesis: Run 5's batch win (byte tokenizer) should stack rather than cancel on top of Run 8's
+  tokenizer + width, since data coverage per step and model capacity are largely independent levers.
+  Result: step-2000 loss 1.7102 (vs 2.0735). Dev bpb 1.9863 (-0.2529).
+  Conclusion: WIN, confirmed, stacks cleanly — -0.2529 stacked vs -0.2690 for the same lever isolated
+  in Run 5, i.e. ~94% of the isolated effect survives stacking.
+
+RUN 10 — learning rate 3e-4 -> 1e-3 (batch=32, stacked on Run 9)
+  Hypothesis: an audit of Runs 0-9 found lr=3e-4 was inherited from the baseline and NEVER VARIED in
+  any run. Phase 1's three "LR schedule" runs all held peak LR equal to the baseline's constant, so
+  each ran at roughly HALF the baseline's average LR — they tested LR magnitude, not schedule shape.
+  Sorted by mean LR, all four Phase 1 points are cleanly monotonic (1.50e-4 -> 2.6976, 1.63e-4 ->
+  2.6338, 1.65e-4 -> 2.6076, 3.00e-4 -> 2.3718): more LR, better bpb, every time, with the best result
+  at the HIGHEST LR ever tested — the edge of the search range, not an interior optimum. Every
+  checkpoint including Run 9 is also still descending steeply at step 2000 (slope -0.05/250 steps),
+  i.e. under-trained rather than capacity-limited. Batch=32 additionally lowers gradient-noise scale,
+  which raises the maximum stable LR. Predicted: a higher constant LR should be a large win.
+  Change: --lr 1e-3 (~3.3x). Everything else identical to Run 9 — isolating LR alone. 1e-3 chosen over
+  2e-3 as the expected-value play given only one run fit in the remaining time; grad clip already
+  active as divergence insurance.
+  Result: step-100 loss 3.0364 (worse early, as expected at higher LR), step-2000 loss 1.5502 (vs
+  Run 9's 1.7102). Dev bpb 1.8798 (-0.1065).
+  Conclusion: WIN — the second-largest single win of the exercise, larger than the tokenizer (-0.0646)
+  and width (-0.0488) changes COMBINED. Phase 1's conclusion that "most of the baseline's 2.37 is
+  closer to real capacity limits than mediocre trainer tax" is falsified: one untested hyperparameter
+  was worth more than all of Phase 2b and Phase 3. No divergence at 3.3x LR; late slope flattened
+  (-0.0288/250 steps vs Run 9's -0.0518) but the curve still has not turned over, so the optimum is
+  likely higher still. Shipped as ckpt.pt.
+  Open, out of time: LR bracketed only from below (3e-4 < 1e-3 <= ?). 2e-3 and warmup+cosine with peak
+  >1e-3 — the hypothesis Phase 1 never actually tested — are the obvious next runs. Also untested:
+  block_size 128->256 (costs only n_embd 184->180 by the param formula) and seed variance.</pre>
+  </div>
+
+  <footer>
+    Generated for the Plivo 2,000-Step LLM Speedrun submission.
+  </footer>
+
+</div>
+</body>
+</html>

@@ -33,9 +33,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", required=True)
     ap.add_argument("--steps", type=int, default=2000)
-    ap.add_argument("--batch", type=int, default=8)
+    ap.add_argument("--batch", type=int, default=32)
     ap.add_argument("--block", type=int, default=None)
-    ap.add_argument("--lr", type=float, default=3e-4)
+    # lr=1e-3: the baseline's 3e-4 was never varied for 9 runs; at 2000 steps
+    # this model is under-trained, not capacity-limited, and 3.3x LR was worth
+    # -0.1065 bpb (RUNLOG Run 10). Optimum is bracketed only from below.
+    ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--seed", type=int, default=1337)
     ap.add_argument("--out", default="ckpt.pt")
     ap.add_argument("--log_every", type=int, default=100)

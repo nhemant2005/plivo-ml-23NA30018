@@ -14,7 +14,7 @@ class Config:
     block_size = 128
     n_layer = 4
     n_head = 4
-    n_embd = 160
+    n_embd = 184
     dropout = 0.0
     tie_weights = False   # regressed at vocab=256 (Run 2) and vocab=913 (Run 7); don't retry
 
